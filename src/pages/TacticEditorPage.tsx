@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import type { CounterRelation, CustomTactic, RiskLevel, TacticType } from '../engine/types';
+import { Link } from 'react-router-dom';
+import type { CustomTactic, RiskLevel, TacticType } from '../engine/types';
 import { RISK_LABELS } from '../engine/types';
 import { useTacticLibraryStore } from '../store/useTacticLibraryStore';
 import CounterMatrixEditor from '../components/CounterMatrixEditor';
@@ -31,7 +31,6 @@ const DEFAULT_FORM: TacticFormState = {
 };
 
 export default function TacticEditorPage() {
-  const navigate = useNavigate();
   const {
     tactics,
     counterRelations,

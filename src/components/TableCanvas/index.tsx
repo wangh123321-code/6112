@@ -10,17 +10,21 @@ interface TableCanvasProps {
   lastWinner: 'player' | 'ai' | null;
 }
 
-function normToTable(
-  pos: Position,
-  halfW: number,
-  halfH: number,
-  isPlayer: boolean
-): { x: number; y: number } {
-  const yDir = isPlayer ? 1 : -1;
-  return {
-    x: halfW + pos.x * (halfW * 0.7),
-    y: halfH + yDir * (0.3 + Math.abs(pos.y) * 0.5) * halfH * yDir * (isPlayer ? 1 : -1),
-  };
+interface PixiGraphicsWithTarget extends PIXI.Graphics {
+  targetX?: number;
+  targetY?: number;
+}
+
+interface PixiAppWithExtras extends PIXI.Application {
+  _updateMarkers?: (
+    marker: PIXI.Graphics,
+    pos: Position,
+    isPlayer: boolean
+  ) => void;
+  _centerX?: number;
+  _centerY?: number;
+  _tableY?: number;
+  _tableH?: number;
 }
 
 export default function TableCanvas({
@@ -30,9 +34,9 @@ export default function TableCanvas({
   lastWinner,
 }: TableCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const appRef = useRef<PIXI.Application | null>(null);
-  const playerMarkerRef = useRef<PIXI.Graphics | null>(null);
-  const aiMarkerRef = useRef<PIXI.Graphics | null>(null);
+  const appRef = useRef<PixiAppWithExtras | null>(null);
+  const playerMarkerRef = useRef<PixiGraphicsWithTarget | null>(null);
+  const aiMarkerRef = useRef<PixiGraphicsWithTarget | null>(null);
   const ballLayerRef = useRef<PIXI.Container | null>(null);
   const animatingRef = useRef(false);
 
@@ -49,7 +53,7 @@ export default function TableCanvas({
       backgroundColor: 0x1a1a2e,
       antialias: true,
       resolution: window.devicePixelRatio || 1,
-    });
+    }) as PixiAppWithExtras;
     container.appendChild(app.view as unknown as Node);
     appRef.current = app;
 
@@ -62,9 +66,8 @@ export default function TableCanvas({
     const tableW = width - padding * 2;
     const tableH = height - padding * 2;
     const halfW = tableW / 2;
-    const halfH = tableH / 2;
     const centerX = tableX + halfW;
-    const centerY = tableY + halfH;
+    const centerY = tableY + tableH / 2;
 
     const tableBg = new PIXI.Graphics();
     tableBg.beginFill(COLORS.tableBg);
@@ -139,43 +142,41 @@ export default function TableCanvas({
       return g;
     }
 
-    const playerMarker = createMarker(COLORS.player, '你', tableY + tableH * 0.78);
-    const aiMarker = createMarker(COLORS.ai, 'AI对手', tableY + tableH * 0.22);
+    const playerMarker = createMarker(COLORS.player, '你', tableY + tableH * 0.78) as PixiGraphicsWithTarget;
+    const aiMarker = createMarker(COLORS.ai, 'AI对手', tableY + tableH * 0.22) as PixiGraphicsWithTarget;
     tableContainer.addChild(playerMarker);
     tableContainer.addChild(aiMarker);
     playerMarkerRef.current = playerMarker;
     aiMarkerRef.current = aiMarker;
 
     const updateMarkerPosition = (
-      marker: PIXI.Graphics,
+      marker: PixiGraphicsWithTarget,
       pos: Position,
       isPlayer: boolean
     ) => {
-      const halfWLocal = tableW / 2;
-      const halfHLocal = tableH / 2;
-      const targetX = centerX + pos.x * (halfWLocal * 0.7);
+      const targetX = centerX + pos.x * (halfW * 0.7);
       const baseY = isPlayer
         ? tableY + tableH * 0.78
         : tableY + tableH * 0.22;
       const yOffset = isPlayer ? pos.y * 40 : -pos.y * 40;
       const targetY = baseY + yOffset;
 
-      (marker as any).targetX = targetX;
-      (marker as any).targetY = targetY;
+      marker.targetX = targetX;
+      marker.targetY = targetY;
     };
 
     updateMarkerPosition(playerMarker, playerPosition, true);
     updateMarkerPosition(aiMarker, aiPosition, false);
 
-    playerMarker.x = (playerMarker as any).targetX;
-    playerMarker.y = (playerMarker as any).targetY;
-    aiMarker.x = (aiMarker as any).targetX;
-    aiMarker.y = (aiMarker as any).targetY;
+    playerMarker.x = playerMarker.targetX ?? playerMarker.x;
+    playerMarker.y = playerMarker.targetY ?? playerMarker.y;
+    aiMarker.x = aiMarker.targetX ?? aiMarker.x;
+    aiMarker.y = aiMarker.targetY ?? aiMarker.y;
 
     app.ticker.add(() => {
       [playerMarker, aiMarker].forEach((marker) => {
-        const tx = (marker as any).targetX;
-        const ty = (marker as any).targetY;
+        const tx = marker.targetX;
+        const ty = marker.targetY;
         if (tx !== undefined && ty !== undefined) {
           marker.x += (tx - marker.x) * 0.12;
           marker.y += (ty - marker.y) * 0.12;
@@ -183,22 +184,23 @@ export default function TableCanvas({
       });
     });
 
-    (app as any)._updateMarkers = updateMarkerPosition;
-    (app as any)._centerX = centerX;
-    (app as any)._centerY = centerY;
-    (app as any)._tableY = tableY;
-    (app as any)._tableH = tableH;
+    app._updateMarkers = updateMarkerPosition;
+    app._centerX = centerX;
+    app._centerY = centerY;
+    app._tableY = tableY;
+    app._tableH = tableH;
 
     return () => {
       app.destroy(true, { children: true, texture: true, baseTexture: true });
       appRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     const app = appRef.current;
     if (!app) return;
-    const updatePos = (app as any)._updateMarkers;
+    const updatePos = app._updateMarkers;
     const playerMarker = playerMarkerRef.current;
     const aiMarker = aiMarkerRef.current;
     if (updatePos && playerMarker && aiMarker) {

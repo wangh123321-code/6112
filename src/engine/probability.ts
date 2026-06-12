@@ -96,6 +96,8 @@ export function computeNewPositions(
 
   let loserOffsetX = 0;
   let loserOffsetY = 0;
+  let currentSide: number;
+  let side: number;
 
   switch (winnerTactic) {
     case 'attack':
@@ -107,7 +109,7 @@ export function computeNewPositions(
       loserOffsetY = -LOSER_OFFSET_MAGNITUDE * 0.8;
       break;
     case 'redirect':
-      const currentSide = loserPos.x >= 0 ? 1 : -1;
+      currentSide = loserPos.x >= 0 ? 1 : -1;
       loserOffsetX = -currentSide * LOSER_OFFSET_MAGNITUDE;
       loserOffsetY = 0.05;
       break;
@@ -125,7 +127,7 @@ export function computeNewPositions(
               loserOffsetY = -LOSER_OFFSET_MAGNITUDE * 0.8;
               break;
             default:
-              const side = loserPos.x >= 0 ? 1 : -1;
+              side = loserPos.x >= 0 ? 1 : -1;
               loserOffsetX = -side * LOSER_OFFSET_MAGNITUDE;
               loserOffsetY = 0.05;
           }

@@ -3,7 +3,6 @@ import type {
   CounterDirection,
   CounterRelation,
   CounterStrength,
-  CustomTactic,
   TacticType,
 } from '../../engine/types';
 import { useTacticLibraryStore } from '../../store/useTacticLibraryStore';

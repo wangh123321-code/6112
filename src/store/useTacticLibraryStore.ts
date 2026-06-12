@@ -61,29 +61,32 @@ function loadFromStorage(): TacticLibrary | null {
   }
 }
 
-function migrateLegacyData(data: any): TacticLibrary {
+function migrateLegacyData(_data: unknown): TacticLibrary {
+  void _data;
   const tactics: CustomTactic[] = [...BUILTIN_TACTICS];
   const counterRelations: CounterRelation[] = createDefaultCounterRelations(tactics);
   return { tactics, counterRelations, version: CURRENT_VERSION };
 }
 
-function normalizeLibrary(data: any): TacticLibrary {
+function normalizeLibrary(data: unknown): TacticLibrary {
   if (!data || typeof data !== 'object') {
     return migrateLegacyData(data);
   }
 
-  if (!data.version || data.version < CURRENT_VERSION) {
+  const libData = data as Partial<TacticLibrary>;
+
+  if (!libData.version || libData.version < CURRENT_VERSION) {
     return migrateLegacyData(data);
   }
 
   const tactics: CustomTactic[] = [...BUILTIN_TACTICS];
-  if (Array.isArray(data.tactics)) {
-    for (const t of data.tactics) {
+  if (Array.isArray(libData.tactics)) {
+    for (const t of libData.tactics) {
       if (t && t.id && !BUILTIN_TACTICS.find((b) => b.id === t.id)) {
         tactics.push({
           id: String(t.id),
           name: sanitizeTacticName(String(t.name || '')),
-          riskLevel: ['low', 'medium', 'high'].includes(t.riskLevel) ? t.riskLevel : 'medium',
+          riskLevel: ['low', 'medium', 'high'].includes(t.riskLevel as string) ? (t.riskLevel as RiskLevel) : 'medium',
           icon: String(t.icon || '🏓'),
           baseWinRate: typeof t.baseWinRate === 'number' ? t.baseWinRate : 0.5,
           isBuiltin: false,
@@ -96,8 +99,8 @@ function normalizeLibrary(data: any): TacticLibrary {
   const counterRelations: CounterRelation[] = [];
   const existingKeys = new Set<string>();
 
-  if (Array.isArray(data.counterRelations)) {
-    for (const rel of data.counterRelations) {
+  if (Array.isArray(libData.counterRelations)) {
+    for (const rel of libData.counterRelations) {
       if (!rel || !rel.tacticA || !rel.tacticB) continue;
       const a = String(rel.tacticA);
       const b = String(rel.tacticB);
@@ -108,8 +111,8 @@ function normalizeLibrary(data: any): TacticLibrary {
       counterRelations.push({
         tacticA: a,
         tacticB: b,
-        direction: ['none', 'A-beats-B', 'B-beats-A'].includes(rel.direction) ? rel.direction : 'none',
-        strength: [0, 10, 20, 30].includes(rel.strength) ? (rel.strength as CounterStrength) : 0,
+        direction: ['none', 'A-beats-B', 'B-beats-A'].includes(rel.direction as string) ? (rel.direction as CounterDirection) : 'none',
+        strength: [0, 10, 20, 30].includes(rel.strength as number) ? (rel.strength as CounterStrength) : 0,
         reason: rel.reason ? String(rel.reason) : undefined,
       });
     }

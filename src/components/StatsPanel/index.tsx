@@ -42,11 +42,6 @@ export default function StatsPanel() {
     return Math.round((won / used) * 100);
   };
 
-  const maxUsed = Math.max(
-    ...tacticList.map((id) => stats.records[id]?.used || 0),
-    1
-  );
-
   const tacticMap = new Map(tactics.map((t, i) => [t.id, { ...t, color: getTacticColor(t.id, i) }]));
 
   const getTacticInfo = (id: TacticType) => {

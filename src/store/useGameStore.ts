@@ -84,8 +84,9 @@ function checkGameEnd(playerScore: number, aiScore: number): 'player' | 'ai' | n
 function isCriticalPoint(
   playerScore: number,
   aiScore: number,
-  round: number
+  _round: number
 ): { isCritical: boolean; isGamePoint: boolean } {
+  void _round;
   const maxScore = Math.max(playerScore, aiScore);
   const isDeuce = playerScore >= 10 && aiScore >= 10;
   const isGamePoint =
