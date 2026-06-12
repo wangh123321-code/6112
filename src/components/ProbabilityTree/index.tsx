@@ -1,15 +1,44 @@
 import { useGameStore } from '../../store/useGameStore';
-import { TACTIC_ICONS, TACTIC_LABELS } from '../../engine/types';
+import { useTacticLibraryStore } from '../../store/useTacticLibraryStore';
 import type { TacticType } from '../../engine/types';
+import { useEffect } from 'react';
 
-const TACTIC_COLORS: Record<TacticType, string> = {
+const DEFAULT_COLORS: Record<string, string> = {
   attack: '#FF6B35',
   control: '#4ECDC4',
   redirect: '#FFD93D',
 };
 
+const RAINBOW_COLORS = [
+  '#FF6B35',
+  '#4ECDC4',
+  '#FFD93D',
+  '#A78BFA',
+  '#F472B6',
+  '#34D399',
+  '#60A5FA',
+  '#FB923C',
+  '#F87171',
+  '#38BDF8',
+  '#C084FC',
+  '#FBBF24',
+  '#2DD4BF',
+  '#FB7185',
+  '#A3E635',
+];
+
+function getTacticColor(id: string, idx: number): string {
+  if (DEFAULT_COLORS[id]) return DEFAULT_COLORS[id];
+  return RAINBOW_COLORS[idx % RAINBOW_COLORS.length];
+}
+
 export default function ProbabilityTree() {
   const { lastResult, advanceFromTree, phase } = useGameStore();
+  const { tactics, initLibrary } = useTacticLibraryStore();
+
+  useEffect(() => {
+    initLibrary();
+  }, [initLibrary]);
 
   if (!lastResult || phase !== 'showing_tree') return null;
 
@@ -18,6 +47,17 @@ export default function ProbabilityTree() {
   const actualBranch = probabilityBranches.find(
     (b) => b.aiResponse === aiTactic
   );
+
+  const tacticMap = new Map(tactics.map((t, i) => [t.id, { ...t, color: getTacticColor(t.id, i) }]));
+
+  const getTacticInfo = (id: TacticType) => {
+    const found = tacticMap.get(id);
+    if (found) return { name: found.name, icon: found.icon, color: found.color };
+    return { name: id, icon: '🏓', color: '#F5F0E1' };
+  };
+
+  const playerInfo = getTacticInfo(playerTactic);
+  const aiInfo = getTacticInfo(aiTactic);
 
   return (
     <div className="bg-gradient-to-r from-[#16213E] to-[#1A1A2E] rounded-xl p-5 shadow-lg border border-white/10">
@@ -36,19 +76,19 @@ export default function ProbabilityTree() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mb-5">
+      <div className="flex items-center gap-2 mb-5 flex-wrap">
         <div
           className="px-3 py-1.5 rounded-lg text-white text-sm font-bold"
-          style={{ backgroundColor: TACTIC_COLORS[playerTactic] }}
+          style={{ backgroundColor: playerInfo.color }}
         >
-          {TACTIC_ICONS[playerTactic]} {TACTIC_LABELS[playerTactic]}
+          {playerInfo.icon} {playerInfo.name}
         </div>
         <span className="text-white/50 mx-1">vs</span>
         <div
           className="px-3 py-1.5 rounded-lg text-white text-sm font-bold"
-          style={{ backgroundColor: TACTIC_COLORS[aiTactic] }}
+          style={{ backgroundColor: aiInfo.color }}
         >
-          {TACTIC_ICONS[aiTactic]} {TACTIC_LABELS[aiTactic]}
+          {aiInfo.icon} {aiInfo.name}
         </div>
         <span className="text-white/50 mx-1">→</span>
         <div className="flex items-center gap-1 text-sm">
@@ -62,6 +102,7 @@ export default function ProbabilityTree() {
         <div className="text-xs text-white/60 mb-2">你的战术在不同AI应对下的胜率分支：</div>
         {probabilityBranches.map((branch) => {
           const isActual = branch.aiResponse === aiTactic;
+          const branchInfo = getTacticInfo(branch.aiResponse);
           return (
             <div
               key={branch.aiResponse}
@@ -77,12 +118,12 @@ export default function ProbabilityTree() {
                 </div>
               )}
               <div
-                className="flex items-center gap-2 w-24"
-                style={{ color: TACTIC_COLORS[branch.aiResponse] }}
+                className="flex items-center gap-2 w-28"
+                style={{ color: branchInfo.color }}
               >
-                <span className="text-lg">{TACTIC_ICONS[branch.aiResponse]}</span>
+                <span className="text-lg">{branchInfo.icon}</span>
                 <span className="font-bold text-sm">
-                  AI{TACTIC_LABELS[branch.aiResponse]}
+                  AI{branchInfo.name}
                 </span>
               </div>
 

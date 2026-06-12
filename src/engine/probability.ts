@@ -1,10 +1,10 @@
 import {
-  TACTIC_MATRIX,
-  TACTIC_SENSITIVITY,
   RANDOM_NOISE_RANGE,
   POSITION_ADVANTAGE_PER_01,
   WINNER_POSITION_BOOST,
   LOSER_OFFSET_MAGNITUDE,
+  getTacticSensitivity,
+  getWinRateFromMatrix,
 } from './constants';
 import type {
   PlayerState,
@@ -12,14 +12,39 @@ import type {
   ProbabilityBranch,
   RoundResult,
   TacticType,
+  CustomTactic,
+  CounterRelation,
 } from './types';
 import { clamp, gaussianRandom, normalizePosition } from '../utils/helpers';
+
+interface TacticContext {
+  tactics: CustomTactic[];
+  relations: CounterRelation[];
+}
+
+let tacticContext: TacticContext | null = null;
+
+export function setTacticContext(ctx: TacticContext | null) {
+  tacticContext = ctx;
+}
+
+export function getTacticContext(): TacticContext | null {
+  return tacticContext;
+}
 
 export function computeBaseWinRate(
   playerTactic: TacticType,
   aiTactic: TacticType
 ): number {
-  return TACTIC_MATRIX[playerTactic][aiTactic];
+  if (tacticContext) {
+    return getWinRateFromMatrix(
+      playerTactic,
+      aiTactic,
+      tacticContext.tactics,
+      tacticContext.relations
+    );
+  }
+  return getWinRateFromMatrix(playerTactic, aiTactic);
 }
 
 export function applyPositionAdvantage(
@@ -28,7 +53,9 @@ export function applyPositionAdvantage(
   playerAdvantage: number,
   aiAdvantage: number
 ): number {
-  const sensitivity = TACTIC_SENSITIVITY[playerTactic];
+  const sensitivity = tacticContext
+    ? getTacticSensitivity(playerTactic, tacticContext.tactics)
+    : getTacticSensitivity(playerTactic);
   const advantageDiff = playerAdvantage - aiAdvantage;
   const adjustment = advantageDiff * (POSITION_ADVANTAGE_PER_01 * 10) * sensitivity;
   return clamp(baseRate + adjustment, 0.05, 0.95);
@@ -84,6 +111,26 @@ export function computeNewPositions(
       loserOffsetX = -currentSide * LOSER_OFFSET_MAGNITUDE;
       loserOffsetY = 0.05;
       break;
+    default:
+      if (tacticContext) {
+        const t = tacticContext.tactics.find((x) => x.id === winnerTactic);
+        if (t) {
+          switch (t.riskLevel) {
+            case 'high':
+              loserOffsetX = (Math.random() > 0.5 ? 1 : -1) * LOSER_OFFSET_MAGNITUDE;
+              loserOffsetY = 0.1;
+              break;
+            case 'low':
+              loserOffsetX = (Math.random() - 0.5) * 0.15;
+              loserOffsetY = -LOSER_OFFSET_MAGNITUDE * 0.8;
+              break;
+            default:
+              const side = loserPos.x >= 0 ? 1 : -1;
+              loserOffsetX = -side * LOSER_OFFSET_MAGNITUDE;
+              loserOffsetY = 0.05;
+          }
+        }
+      }
   }
 
   const newLoserX = loserPos.x + loserOffsetX;
@@ -102,13 +149,19 @@ export function generateProbabilityBranches(
   playerAdvantage: number,
   aiAdvantage: number
 ): ProbabilityBranch[] {
-  const responses: TacticType[] = ['attack', 'control', 'redirect'];
+  const responses: TacticType[] = tacticContext
+    ? tacticContext.tactics.map((t) => t.id)
+    : ['attack', 'control', 'redirect'];
   return responses.map((resp) => {
     const base = computeBaseWinRate(playerTactic, resp);
     const withAdv = applyPositionAdvantage(base, playerTactic, playerAdvantage, aiAdvantage);
     const prob = Math.round(withAdv * 100);
 
     let description = '';
+    const labels: Record<TacticType, string> = tacticContext
+      ? Object.fromEntries(tacticContext.tactics.map((t) => [t.id, t.name]))
+      : { attack: '强攻', control: '控短', redirect: '变线' };
+
     if (playerTactic === 'attack' && resp === 'control') {
       description = '强攻对手控短，主动上手优势明显';
     } else if (playerTactic === 'attack' && resp === 'attack') {
@@ -122,7 +175,9 @@ export function generateProbabilityBranches(
     } else if (playerTactic === 'redirect' && resp === 'control') {
       description = '变线打乱对手控短节奏';
     } else {
-      description = '战术对抗';
+      const pName = labels[playerTactic] || playerTactic;
+      const rName = labels[resp] || resp;
+      description = `${pName} 对阵 ${rName}，战术对抗`;
     }
 
     return {

@@ -1,32 +1,59 @@
 import { useGameStore } from '../../store/useGameStore';
-import { AI_STYLE_LABELS, TACTIC_ICONS, TACTIC_LABELS } from '../../engine/types';
+import { useTacticLibraryStore } from '../../store/useTacticLibraryStore';
+import { AI_STYLE_LABELS } from '../../engine/types';
 import type { TacticType } from '../../engine/types';
+import { useEffect } from 'react';
 
-const TACTIC_COLORS: Record<TacticType, string> = {
+const DEFAULT_COLORS: Record<string, string> = {
   attack: '#FF6B35',
   control: '#4ECDC4',
   redirect: '#FFD93D',
 };
 
+const RAINBOW_COLORS = [
+  '#FF6B35', '#4ECDC4', '#FFD93D', '#A78BFA', '#F472B6',
+  '#34D399', '#60A5FA', '#FB923C', '#F87171', '#38BDF8',
+  '#C084FC', '#FBBF24', '#2DD4BF', '#FB7185', '#A3E635',
+];
+
+function getTacticColor(id: string, idx: number): string {
+  if (DEFAULT_COLORS[id]) return DEFAULT_COLORS[id];
+  return RAINBOW_COLORS[idx % RAINBOW_COLORS.length];
+}
+
 export default function StatsPanel() {
   const { stats, winner, aiStyle, restartGame, resetToStyleSelect, playerScore, aiScore } =
     useGameStore();
+  const { tactics, initLibrary } = useTacticLibraryStore();
 
-  const totalRounds = stats.attack.used + stats.control.used + stats.redirect.used;
+  useEffect(() => {
+    initLibrary();
+  }, [initLibrary]);
+
+  const tacticList: TacticType[] = tactics.map((t) => t.id);
+
+  const totalRounds = tacticList.reduce((sum, id) => {
+    const s = stats.records[id];
+    return sum + (s?.used || 0);
+  }, 0);
 
   const getSuccessRate = (used: number, won: number) => {
     if (used === 0) return 0;
     return Math.round((won / used) * 100);
   };
 
-  const tacticList: TacticType[] = ['attack', 'control', 'redirect'];
-
   const maxUsed = Math.max(
-    stats.attack.used,
-    stats.control.used,
-    stats.redirect.used,
+    ...tacticList.map((id) => stats.records[id]?.used || 0),
     1
   );
+
+  const tacticMap = new Map(tactics.map((t, i) => [t.id, { ...t, color: getTacticColor(t.id, i) }]));
+
+  const getTacticInfo = (id: TacticType) => {
+    const found = tacticMap.get(id);
+    if (found) return { name: found.name, icon: found.icon, color: found.color };
+    return { name: id, icon: '🏓', color: '#F5F0E1' };
+  };
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -60,23 +87,24 @@ export default function StatsPanel() {
             </h3>
             <div className="space-y-3">
               {tacticList.map((t) => {
-                const used = stats[t].used;
+                const info = getTacticInfo(t);
+                const used = stats.records[t]?.used || 0;
                 const rate = totalRounds === 0 ? 0 : (used / totalRounds) * 100;
                 return (
                   <div key={t} className="flex items-center gap-3">
-                    <div className="w-20 text-sm text-white/80">
-                      {TACTIC_ICONS[t]} {TACTIC_LABELS[t]}
+                    <div className="w-24 text-sm text-white/80 truncate">
+                      {info.icon} {info.name}
                     </div>
                     <div className="flex-1 h-6 bg-white/10 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all"
                         style={{
                           width: `${rate}%`,
-                          backgroundColor: TACTIC_COLORS[t],
+                          backgroundColor: info.color,
                         }}
                       />
                     </div>
-                    <div className="w-12 text-right text-sm font-bold" style={{ color: TACTIC_COLORS[t] }}>
+                    <div className="w-12 text-right text-sm font-bold" style={{ color: info.color }}>
                       {used}次
                     </div>
                   </div>
@@ -91,12 +119,13 @@ export default function StatsPanel() {
             </h3>
             <div className="space-y-3">
               {tacticList.map((t) => {
-                const { used, won } = stats[t];
+                const info = getTacticInfo(t);
+                const { used = 0, won = 0 } = stats.records[t] || {};
                 const success = getSuccessRate(used, won);
                 return (
                   <div key={t} className="flex items-center gap-3">
-                    <div className="w-20 text-sm text-white/80">
-                      {TACTIC_ICONS[t]} {TACTIC_LABELS[t]}
+                    <div className="w-24 text-sm text-white/80 truncate">
+                      {info.icon} {info.name}
                     </div>
                     <div className="flex-1 h-6 bg-white/10 rounded-full overflow-hidden">
                       <div
@@ -145,41 +174,45 @@ export default function StatsPanel() {
                   </tr>
                 </thead>
                 <tbody>
-                  {stats.criticalPoints.map((cp, idx) => (
-                    <tr
-                      key={idx}
-                      className="border-b border-white/5 hover:bg-white/5"
-                    >
-                      <td className="py-2 px-2 text-white/70">#{cp.round}</td>
-                      <td className="py-2 px-2">
-                        <span className="text-[#FF6B35]">{cp.playerScore}</span>
-                        <span className="text-white/50 mx-1">:</span>
-                        <span className="text-[#4ECDC4]">{cp.aiScore}</span>
-                        {cp.isGamePoint && (
-                          <span className="ml-1 text-[10px] text-amber-400">局点</span>
-                        )}
-                      </td>
-                      <td className="py-2 px-2">
-                        <span style={{ color: TACTIC_COLORS[cp.playerTactic] }}>
-                          {TACTIC_ICONS[cp.playerTactic]} {TACTIC_LABELS[cp.playerTactic]}
-                        </span>
-                      </td>
-                      <td className="py-2 px-2">
-                        <span style={{ color: TACTIC_COLORS[cp.aiTactic] }}>
-                          {TACTIC_ICONS[cp.aiTactic]} {TACTIC_LABELS[cp.aiTactic]}
-                        </span>
-                      </td>
-                      <td className="py-2 px-2">
-                        <span
-                          className={
-                            cp.winner === 'player' ? 'text-[#FF6B35]' : 'text-[#4ECDC4]'
-                          }
-                        >
-                          {cp.winner === 'player' ? '✅ 胜' : '❌ 负'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {stats.criticalPoints.map((cp, idx) => {
+                    const pInfo = getTacticInfo(cp.playerTactic);
+                    const aInfo = getTacticInfo(cp.aiTactic);
+                    return (
+                      <tr
+                        key={idx}
+                        className="border-b border-white/5 hover:bg-white/5"
+                      >
+                        <td className="py-2 px-2 text-white/70">#{cp.round}</td>
+                        <td className="py-2 px-2">
+                          <span className="text-[#FF6B35]">{cp.playerScore}</span>
+                          <span className="text-white/50 mx-1">:</span>
+                          <span className="text-[#4ECDC4]">{cp.aiScore}</span>
+                          {cp.isGamePoint && (
+                            <span className="ml-1 text-[10px] text-amber-400">局点</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-2">
+                          <span style={{ color: pInfo.color }}>
+                            {pInfo.icon} {pInfo.name}
+                          </span>
+                        </td>
+                        <td className="py-2 px-2">
+                          <span style={{ color: aInfo.color }}>
+                            {aInfo.icon} {aInfo.name}
+                          </span>
+                        </td>
+                        <td className="py-2 px-2">
+                          <span
+                            className={
+                              cp.winner === 'player' ? 'text-[#FF6B35]' : 'text-[#4ECDC4]'
+                            }
+                          >
+                            {cp.winner === 'player' ? '✅ 胜' : '❌ 负'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

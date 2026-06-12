@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { AI_STYLE_LABELS } from '../../engine/types';
 import type { AIStyle } from '../../engine/types';
 import { getAIStyleDescription } from '../../engine/ai';
@@ -15,6 +16,15 @@ const styles: { key: AIStyle; icon: string; color: string }[] = [
 export default function AISelector({ onSelect }: AISelectorProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1A1A2E] via-[#16213E] to-[#1A1A2E] text-[#F5F0E1] flex flex-col items-center justify-center p-8">
+      <div className="w-full max-w-4xl flex justify-end mb-4">
+        <Link
+          to="/tactic-editor"
+          className="px-4 py-2 rounded-lg bg-white/10 hover:bg-[#FFD93D]/20 text-sm text-white/80 border border-white/20 hover:border-[#FFD93D]/50 transition-colors"
+        >
+          📚 战术库管理
+        </Link>
+      </div>
+
       <h1 className="text-5xl font-bold mb-2 text-center" style={{ fontFamily: "'ZCOOL KuaiLe', cursive" }}>
         🏓 乒乓球战术推演棋盘
       </h1>
@@ -45,9 +55,10 @@ export default function AISelector({ onSelect }: AISelectorProps) {
         <h4 className="text-amber-400 font-bold mb-3">游戏规则</h4>
         <ul className="text-sm text-white/70 space-y-1">
           <li>一局11分制，10平后需领先2分获胜</li>
-          <li>每回合从三种战术中选择一种：强攻⚡ 控短🎯 变线↔️</li>
-          <li>系统根据战术组合和当前站位推演结果</li>
+          <li>每回合从战术库中选择一种战术进行推演</li>
+          <li>系统根据战术组合、克制关系和当前站位推演结果</li>
           <li>每回合结束查看概率树，了解不同选择的胜率</li>
+          <li>可在「战术库管理」中自定义战术与克制关系</li>
         </ul>
       </div>
     </div>

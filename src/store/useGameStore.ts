@@ -7,6 +7,7 @@ import type {
   RoundResult,
   TacticStats,
   TacticType,
+  TacticStatsRecord,
 } from '../engine/types';
 import {
   DEUCE_MIN_LEAD,
@@ -14,9 +15,10 @@ import {
   SERVE_SWITCH_INTERVAL,
   WIN_SCORE,
 } from '../engine/constants';
-import { resolveRound } from '../engine/probability';
+import { resolveRound, setTacticContext } from '../engine/probability';
 import { selectAITactic } from '../engine/ai';
 import { computeAdvantageFromPosition } from '../utils/helpers';
+import { useTacticLibraryStore } from './useTacticLibraryStore';
 
 interface GameStore {
   phase: GamePhase;
@@ -47,12 +49,27 @@ function createInitialPlayer(): PlayerState {
 }
 
 function createInitialStats(): TacticStats {
-  return {
-    attack: { used: 0, won: 0 },
-    control: { used: 0, won: 0 },
-    redirect: { used: 0, won: 0 },
-    criticalPoints: [],
-  };
+  const lib = useTacticLibraryStore.getState();
+  const records: Record<string, TacticStatsRecord> = {};
+  for (const t of lib.tactics) {
+    records[t.id] = { used: 0, won: 0 };
+  }
+  return { records, criticalPoints: [] };
+}
+
+function ensureStatsEntry(
+  records: Record<string, TacticStatsRecord>,
+  id: string
+): TacticStatsRecord {
+  if (!records[id]) {
+    records[id] = { used: 0, won: 0 };
+  }
+  return records[id];
+}
+
+function syncTacticContext() {
+  const lib = useTacticLibraryStore.getState();
+  setTacticContext({ tactics: lib.tactics, relations: lib.counterRelations });
 }
 
 function checkGameEnd(playerScore: number, aiScore: number): 'player' | 'ai' | null {
@@ -94,6 +111,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   winner: null,
 
   selectAIStyle: (style) => {
+    syncTacticContext();
     set({
       aiStyle: style,
       phase: 'waiting_input',
@@ -110,12 +128,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   chooseTactic: (playerTactic) => {
+    syncTacticContext();
     const state = get();
     if (state.phase !== 'waiting_input' || !state.aiStyle) return;
 
     set({ phase: 'resolving' });
 
-    const aiTactic = selectAITactic(state.aiStyle, state.player, state.ai);
+    const lib = useTacticLibraryStore.getState();
+    const aiTactic = selectAITactic(state.aiStyle, state.player, state.ai, lib.tactics);
     const result = resolveRound(playerTactic, aiTactic, state.player, state.ai);
 
     const newPlayerScore =
@@ -128,12 +148,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const newServer: 'player' | 'ai' =
       Math.floor(totalPoints / SERVE_SWITCH_INTERVAL) % 2 === 0 ? 'player' : 'ai';
 
-    const newStats = { ...state.stats };
-    newStats[playerTactic] = {
-      used: newStats[playerTactic].used + 1,
-      won: newStats[playerTactic].won + (result.winner === 'player' ? 1 : 0),
+    const newRecords = { ...state.stats.records };
+    const playerEntry = ensureStatsEntry(newRecords, playerTactic);
+    newRecords[playerTactic] = {
+      used: playerEntry.used + 1,
+      won: playerEntry.won + (result.winner === 'player' ? 1 : 0),
+    };
+    const aiEntry = ensureStatsEntry(newRecords, aiTactic);
+    newRecords[aiTactic] = {
+      used: aiEntry.used + 1,
+      won: aiEntry.won + (result.winner === 'ai' ? 1 : 0),
     };
 
+    const newCriticalPoints = [...state.stats.criticalPoints];
     const critical = isCriticalPoint(state.playerScore, state.aiScore, newRound);
     if (critical.isCritical) {
       const cp: CriticalPoint = {
@@ -145,7 +172,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         winner: result.winner,
         isGamePoint: critical.isGamePoint,
       };
-      newStats.criticalPoints = [...newStats.criticalPoints, cp];
+      newCriticalPoints.push(cp);
     }
 
     const gameWinner = checkGameEnd(newPlayerScore, newAIScore);
@@ -167,7 +194,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           lastTactic: aiTactic,
         },
         lastResult: result,
-        stats: newStats,
+        stats: { records: newRecords, criticalPoints: newCriticalPoints },
         winner: gameWinner,
         phase: gameWinner ? 'game_over' : 'showing_tree',
       });
@@ -181,6 +208,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   restartGame: () => {
+    syncTacticContext();
     const { aiStyle } = get();
     if (!aiStyle) {
       set({ phase: 'selecting_style' });

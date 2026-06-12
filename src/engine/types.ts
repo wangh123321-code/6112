@@ -1,4 +1,36 @@
-export type TacticType = 'attack' | 'control' | 'redirect';
+export type BuiltinTacticType = 'attack' | 'control' | 'redirect';
+
+export type TacticType = BuiltinTacticType | string;
+
+export type RiskLevel = 'low' | 'medium' | 'high';
+
+export type CounterStrength = 0 | 10 | 20 | 30;
+
+export type CounterDirection = 'none' | 'A-beats-B' | 'B-beats-A';
+
+export interface CustomTactic {
+  id: string;
+  name: string;
+  riskLevel: RiskLevel;
+  icon: string;
+  baseWinRate: number;
+  isBuiltin: boolean;
+  description?: string;
+}
+
+export interface CounterRelation {
+  tacticA: TacticType;
+  tacticB: TacticType;
+  direction: CounterDirection;
+  strength: CounterStrength;
+  reason?: string;
+}
+
+export interface TacticLibrary {
+  tactics: CustomTactic[];
+  counterRelations: CounterRelation[];
+  version: number;
+}
 
 export type AIStyle = 'counter' | 'aggressive' | 'variable';
 
@@ -53,11 +85,42 @@ export interface TacticStatsRecord {
 }
 
 export interface TacticStats {
-  attack: TacticStatsRecord;
-  control: TacticStatsRecord;
-  redirect: TacticStatsRecord;
+  records: Record<string, TacticStatsRecord>;
   criticalPoints: CriticalPoint[];
 }
+
+export const BUILTIN_TACTICS: CustomTactic[] = [
+  {
+    id: 'attack',
+    name: '强攻',
+    riskLevel: 'high',
+    icon: '⚡',
+    baseWinRate: 0.5,
+    isBuiltin: true,
+  },
+  {
+    id: 'control',
+    name: '控短',
+    riskLevel: 'low',
+    icon: '🎯',
+    baseWinRate: 0.5,
+    isBuiltin: true,
+  },
+  {
+    id: 'redirect',
+    name: '变线',
+    riskLevel: 'medium',
+    icon: '↔️',
+    baseWinRate: 0.5,
+    isBuiltin: true,
+  },
+];
+
+export const RISK_LABELS: Record<RiskLevel, string> = {
+  low: '低风险',
+  medium: '中风险',
+  high: '高风险',
+};
 
 export const TACTIC_LABELS: Record<TacticType, string> = {
   attack: '强攻',
